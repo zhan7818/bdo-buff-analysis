@@ -1,0 +1,239 @@
+---
+title: "Investigating Effects of Temporary Enhancements on Optimal Silver Income in Black Desert Online"
+author: "Tian Yi Zhang"
+date: "15/04/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages(dplyr)
+#install.packages(dae)
+#install.packages(FrF2)
+library(FrF2)
+library(dplyr)
+#library(dae)
+```
+
+## Description
+
+A favourite video game of mine is the massively multiplayer online role-playing called $\textbf{Black Desert Online}$. In this game, a primary goal of the player is to earn silver, the game’s universal currency for most goods. One of the most common ways to earn silver in the game is to defeat packs of AI-controlled characters that reside in the game’s world. We will dub these AI characters as mobs from this point onwards. Each mob defeated will drop an item that can be exchanged for silver. Different mobs drop items that grant different amounts of silver. In the game, a player can use different enhancements and/or elixirs that temporarily boost their attack power, allowing them to defeat mobs quicker, though it is unclear how much difference there is with and without the usage of such enhancements. Additionally, different types of enhancements cost various amounts of silver, making it unclear whether it is worth it to use these enhancements. The goal of this project is therefore to determine the effects of different combinations of elixirs/enhancements on the amount of silver a player earns by defeating mobs in the hopes to conclude the best overall strategy for maximum silver gain.
+
+The experiment is a $2^3$ factorial design. There are 3 factors, which are all temporary enhancements of different types. They are listed as follows:
+
+\begin{itemize}
+  \item Body Enhancement Scroll (yes/no)
+  \item Perfume of Courage (yes/no)
+  \item Frenzy Draught (yes/no)
+\end{itemize}
+
+In total, there are 8 combinations of the above factors. Each of these 8 combinations will be tested by continuously defeating mobs for 10 minutes under each of the 8 conditions at a mob-occupied zone called "Star's End". These 10-minute tests are conducted without influence by other players during the game's daytime (mobs are considerably stronger at nighttime in the game, affecting the accuracy of the experiment) and are replicated once for a total of 16 runs. The order of the experimental runs are randomized to ensure genuine replication.
+
+It was originally planned to let other players replicate the tests and use the players as blocks to generalize the finding of the project to a broader audience. This however was sadly not possible during the time given and therefore readers of this analysis need to be mindful of the possibility of "player skill" as a nuisance factor that may have contributed to the findings.
+
+One notable detail is that both Perfume of Courage and Frenzy Draught are purchased from Black Desert Online's central marketplace, which means the silver cost of these two items are player-driven and therefore fluctuate overtime. For the sake of this analysis, fixed prices will be used when calcualting silver income: (The prices will be based on each item's market price at the time of writing the proposal)
+
+\begin{itemize}
+  \item Body Enhancement Scroll: 166,666.67 Silver
+  \item Perfume of Courage: 3,275,000 Silver
+  \item Frenzy Draught: 1,340,000 Silver
+\end{itemize}
+
+Being that this test is conducted in a video game, one would generally assume that enhancements meant to boost your attack power should be worth it (i.e. beneficial on your silver income). Therefore the first null hypothesis predicts that $\textbf{the main effect of Frenzy Draught on silver income is statistically significant}$.
+
+Note that out of the three types of enhancements, Body Enhancement Scroll and Perfume of Courage stands out due to them also boosting player vs player attack power and not just player vs monster attack power, therefore the player-driven market price for Perfume of Courage could have accounted for that factor. (Body Enhancement Scroll's price is fixed, although it is possible that the developers of the game also accounted for its effect in player vs player situations). This leads to the possibility that Perfume of Courage and Body Enhancement Scroll may not be profitable if only used for player vs monster purposes. Therefore another null hypothesis to be tested is that $\textbf{the effect of Perfume of Courage and Body Enhancement Scroll}$ on silver income is statistically insignificant.
+
+Another point of consideration is the idea of overkill and damage efficiency. To properly explain this to people who usually don't play video games, we have to expand on this topic a little: In Black Desert Online, players need to utilize their character's skills and abilities when defeating monsters. Some of these abilities have rather long $\textbf{cooldowns}$ (i.e. downtime before the ability can be used again); if a player is unable to defeat a monster by using all their abilities, they will have to wait for their abilities to cooldown and use it again on the same monster to defeat it. This brings up the topic of damage efficiency: If any combination of the enhancements mentioned above can help players reach the point where they can reliably defeat a monster with their abilities without waiting for them to cooldown, it would save the player a lot of time and they can move on to the next monster. This leads to possibilities of Body Enhancement Scroll and Perfume of Courage being inefficient on their own, but become drastically more efficient when used in conjunction with other types of enhancements. Therefore the third null hypothesis is that $\textbf{The two-way and three-way interaction effects}$ of the types of enhancements are statistically significant on silver income
+
+In the analysis below, visual plots such as cube plots and interaction plots will be used to visualize and interpret the possible existence of interactions between factors. The main effects and interactions effects will be calculated. The data will then be analyzed by constructing a linear model and a 95% confidence interval for each regression coefficient to examine the estimates and statistical significance on the factors.
+
+```{r hardcorded data, include=FALSE}
+# Here will be the hardcoded data collected
+# run order is randomized to ensure replication is genuine
+# BES represents Body Enhancement Scroll condition
+# PoC represents Perfume of Courage condition
+# DRA represents Draught condition
+# Silver is calculated by selling the items dropped by mobs and subtracting the cost of the enhancements
+run1 <- c(1,5,14,8,3,9,13,6)
+run2 <- c(16,15,4,2,12,10,7,11)
+BES <- c(-1,1,-1,1,-1,1,-1,1)
+PoC <- c(-1,-1,1,1,-1,-1,1,1)
+DRA <- c(-1,-1,-1,-1,1,1,1,1)
+Silver1 <- c(8370000,8358333,5002000,5346833,7293500,7173333,4127000,4502833)
+Silver2 <- c(8385500,8482333,5048500,4974833,7169500,7483333,3817000,4239333)
+Diff_Silver <- c(-15500,-124000,-46500,372000,124000,-310000,310000,263500)
+dat <- data.frame(run1,run2,BES,PoC,DRA,Silver1,Silver2,Diff_Silver)
+dat <- dat %>%
+  mutate(Silver_Avg = (Silver1 + Silver2) /2)
+```
+
+## Data Analysis
+
+Below is the data gathered for this experiment:
+```{r data set, include=TRUE, echo=FALSE}
+dat
+```
+
+\begin{itemize}
+  \item BES = Body Enhancement Scroll, -1 = no, 1 = yes
+  \item PoC = Perfume of Courage, -1 = no, 1 = yes
+  \item DRA = Frenzy Draught, -1 = no, 1 = yes
+\end{itemize}
+
+Here is the cube plot:
+
+```{r cube plot, include=TRUE, echo=FALSE}
+cubePlot(dat$Silver_Avg,dat$BES,dat$PoC,dat$DRA)
+```
+This gives us a visual guide on which combinations of factors brought about the most silver.
+We can also use the cube plot to help calculate the main effects and interaction effects. For example, the main effect of Body Enhancement Scroll from this cube plot is (8420333+7328333+4371083+5160833)/4 - (8377750+5025250+3972000+7231500)/4
+
+We can see that we seem to get the highest silver income when BES and PoC are used, and DRA is not used.
+
+We will show the interactions and main effects calculated below:
+
+```{r calculate main effect and interaction effect, include=TRUE, echo=FALSE}
+# main effects
+mainB = ((dat$Silver1[1]+dat$Silver2[1]+dat$Silver1[3]+dat$Silver2[3]+dat$Silver1[5]+dat$Silver2[5]+dat$Silver1[7]+dat$Silver2[7])/8) - ((dat$Silver1[2]+dat$Silver2[2]+dat$Silver1[4]+dat$Silver2[4]+dat$Silver1[6]+dat$Silver2[6]+dat$Silver1[8]+dat$Silver2[8])/8)
+mainP = ((dat$Silver1[1]+dat$Silver2[1]+dat$Silver1[2]+dat$Silver2[2]+dat$Silver1[5]+dat$Silver2[5]+dat$Silver1[6]+dat$Silver2[6])/8) - ((dat$Silver1[3]+dat$Silver2[3]+dat$Silver1[4]+dat$Silver2[4]+dat$Silver1[7]+dat$Silver2[7]+dat$Silver1[8]+dat$Silver2[8])/8)
+mainD = ((dat$Silver1[1]+dat$Silver2[1]+dat$Silver1[2]+dat$Silver2[2]+dat$Silver1[3]+dat$Silver2[3]+dat$Silver1[4]+dat$Silver2[4])/8) - ((dat$Silver1[5]+dat$Silver2[5]+dat$Silver1[6]+dat$Silver2[6]+dat$Silver1[7]+dat$Silver2[7]+dat$Silver1[8]+dat$Silver2[8])/8)
+
+# two way interaction effects
+# BP interaction
+BP = (((dat$Silver1[2]+dat$Silver2[2]+dat$Silver1[6]+dat$Silver2[6]) - (dat$Silver1[1]+dat$Silver2[1]+dat$Silver1[5]+dat$Silver2[5])) - ((dat$Silver1[4]+dat$Silver2[4]+dat$Silver1[8]+dat$Silver2[8]) - (dat$Silver1[3]+dat$Silver2[3]+dat$Silver1[7]+dat$Silver2[7]))) / 8
+# BD interaction
+BD = (((dat$Silver1[2]+dat$Silver2[2]+dat$Silver1[4]+dat$Silver2[4]) - (dat$Silver1[1]+dat$Silver2[1]+dat$Silver1[3]+dat$Silver2[3])) - ((dat$Silver1[6]+dat$Silver2[6]+dat$Silver1[8]+dat$Silver2[8]) - (dat$Silver1[5]+dat$Silver2[5]+dat$Silver1[7]+dat$Silver2[7]))) / 8
+# DP interaction
+PD = (((dat$Silver1[3]+dat$Silver2[3]+dat$Silver1[4]+dat$Silver2[4]) - (dat$Silver1[1]+dat$Silver2[1]+dat$Silver1[2]+dat$Silver2[2])) - ((dat$Silver1[7]+dat$Silver2[7]+dat$Silver1[8]+dat$Silver2[8]) - (dat$Silver1[5]+dat$Silver2[5]+dat$Silver1[6]+dat$Silver2[6]))) / 8
+# BPD interaction
+BPD = (((((dat$Silver1[8]+dat$Silver2[8])/2)-((dat$Silver1[7]+dat$Silver2[7])/2)-(((dat$Silver1[6]+dat$Silver2[6])/2)-((dat$Silver1[5]+dat$Silver2[5])/2)))/2) - ((((dat$Silver1[4]+dat$Silver2[4])/2)-((dat$Silver1[3]+dat$Silver2[3])/2)-(((dat$Silver1[2]+dat$Silver2[2])/2)-((dat$Silver1[1]+dat$Silver2[1])/2)))/2)) / 2
+```
+
+The main effect of B:
+```{r mainB, include=TRUE, echo=FALSE}
+mainB
+```
+
+The main effect of P:
+```{r mainP, include=TRUE, echo=FALSE}
+mainP
+```
+
+The main effect of D:
+```{r mainD, include=TRUE, echo=FALSE}
+mainD
+```
+
+The BP interaction:
+```{r BP, include=TRUE, echo=FALSE}
+BP
+```
+The BD interaction:
+```{r BD, include=TRUE, echo=FALSE}
+BD
+```
+The PD interaction:
+```{r PD, include=TRUE, echo=FALSE}
+PD
+```
+The BPD interaction:
+```{r BPD, include=TRUE, echo=FALSE}
+BPD
+```
+
+Here are the graphs for interaction plots:
+
+```{r interaction plots, include=TRUE, echo=FALSE}
+# BES by PoC
+interaction.plot(dat$BES,dat$PoC,dat$Silver_Avg, type="l",
+                 xlab="Body Enhancement Scroll",trace.label = "Perfume of Courage",
+                 ylab="Average Silver Income")
+# BES by DRA
+interaction.plot(dat$BES,dat$DRA,dat$Silver_Avg, type="l",
+                 xlab="Body Enhancement Scroll",trace.label = "Frenzy Draught",
+                 ylab="Average Silver Income")
+# PoC by DRA
+interaction.plot(dat$PoC,dat$DRA,dat$Silver_Avg, type="l",
+                 xlab="Perfume of Courage",trace.label = "Frenzy Draught",
+                 ylab="Average Silver Income")
+# Three-way interaction plot
+# interaction.ABC.plot(data=dat, response=Silver_Avg, x.factor=BES, groups.factor=PoC, trace.factor=DRA)
+```
+
+We see that when using Body Enhancement Scroll the effect of using Perfume of Courage reduced silver income by about 3 million, and using Frenzy Draught reduced silver income by about 1.2 million.
+
+When using Perfume of Courage, the effect of Frenzy Draught is to reduce silver income by about 1 million.
+
+Notice that the lines in these interaction plots never intersect and are almost parallel. This shows there is minimal two way interaction between the enhancements, and that a Latin Square design using players as the blocking factor could be a better way to study the effects of enhancements.
+
+Below are the pooled estimate of $\sigma^2$ and variance of the effects:
+```{r estimated error variance of effects, include=TRUE, echo=FALSE}
+# pooled estimate of sigma^2
+s2 = ((dat$Diff_Silver[1]^2)/2 + (dat$Diff_Silver[2]^2)/2 + (dat$Diff_Silver[3]^2)/2 + (dat$Diff_Silver[4]^2)/2 + (dat$Diff_Silver[5]^2)/2 + (dat$Diff_Silver[6]^2)/2 + (dat$Diff_Silver[7]^2)/2 + (dat$Diff_Silver[8]^2)/2)/8
+
+s2
+
+# variance of an effect is:
+var = (1/4)*s2
+
+var
+```
+
+Assuming the observations are independent and normally distributed, then the 95% confidence intervals are as follows:
+```{r confidence interval, include=TRUE, echo=FALSE}
+Effects <- c("B","P","D","BP","BD","PD","BPD")
+se = sqrt(var)
+quant <- qt(p = 1-0.025, df=8)
+
+# CI lower bound
+CI_lower <- c(mainB - quant*se, mainP - quant*se, mainD-quant*se, BP-quant*se, BD-quant*se,PD-quant*se,BPD-quant*se)
+# CI upper bound
+CI_upper <- c(mainB + quant*se, mainP + quant*se, mainD+quant*se, BP+quant*se, BD+quant*se,PD+quant*se,BPD+quant*se)
+
+CI = data.frame(Effects, CI_lower, CI_upper)
+
+CI
+```
+
+We see from the table above that P and D are significant (their CIs do not contain 0).
+
+Recall from the above interactions and main effects calculated, and we see that the three main effects are way larger than 3 times their standard error, thus the individual enhancements' effects cannot be explained by chance alone, while the interactions can.
+
+we are going to fit the data to a linear model for significance testing:
+
+```{r linear model, include=TRUE, echo=FALSE}
+# Linear Model
+B <- c(-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1,-1,1)
+P <- c(-1,-1,1,1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1)
+D <- c(-1,-1,-1,-1,1,1,1,1,-1,-1,-1,-1,1,1,1,1)
+Silver <- c(8370000,8358333,5002000,5346833,7293500,7173333,4127000,4502833,8385500,8482333,5048500,4974833,7169500,7483333,3817000,4239333)
+datM <- data.frame(B,P,D,Silver)
+
+fact.mod <- lm(data=datM, Silver~B*P*D)
+round(summary(fact.mod)$coefficients,2)
+
+# CI
+round(2*confint.lm(fact.mod),2)
+```
+
+We can see that the confidence intervals are identical to the ones we calculated earlier.
+
+Under the null hypotheses that the factorial effects are 0, we can see that P and D have p-value close 0, implying there is very strong evidence to reject the null hypotheses that these two effects are statistically insignificant.
+
+We can see that the p-value for the two-way and three-way interactions are relatively high, implying there is no evidence to suggest $H_0$ is wrong. This, in addition to our interaction plots showing small interaction values earlier on, lets us interpret the effects of the three factors separately.
+
+## Conclusions
+
+Based off of our findings, we can conclude that there are no interactions between the three types of enhancements. Unlike we predicted at the beginning of this analysis, there doesn't seem to be any sign of overkill or the combinations of enhancements elevating the player's damage to a new level of efficiency, which explains the weak two way and three way interactions somewhat. Body enhancement scroll alone seems to be the optimal choice for maximizing silver income. To my surprise, Frenzy Draught, which was meant to be used against monsters, actually negatively affected silver income, or only slightly improved silver income when used in conjunction with other enhancements, and even so, the p-value from our linear model suggests that these small margins of improvements could be just due to chance.
+
+As is to be expected, Perfume of Courage's usage dramatically decreases silver income. This could be due to its player-driven price and the fact that it is also used for player vs player situations.
+
+## Discussion and Limitations:
+
+As previously discussed in the interactions section, a more ideal analysis of this topic would be to use a Latin Square design where we use players are the blocking factor to eliminate "player skill" as a nuisance factor. However, the experimenter was unsuccessful in recruiting other players to replicate the experimental treatments.
+
+Player skill is quite important in determining silver income. If possible, more replications would be desired in order to reduce the randomness caused by it.
+
+Furthermore, "Star's End" is not the only monster zone in Black Desert Online. Ideally, replications of the runs for different monster zones could introduce another blocking factor to help generalize the findings of the experiment even further.
+
+There is a possibility of sampling bias: The "Star's End" monster zone is quite large and there are certain routes that a player follows when defeating monsters in order to optimize their silver income. Note however that the number of mobs that wander onto these pre-determined routes may not always be the same number, hence the absence of such a variable (which is hard to quantify) may have introduced some bias into the analysis.
